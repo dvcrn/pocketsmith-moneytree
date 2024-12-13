@@ -8,3 +8,5 @@ github.com/dvcrn/romajiconv v0.0.0-20241213070614-a73da9352b56 h1:g3Cs+xYcfRVbmU
 github.com/dvcrn/romajiconv v0.0.0-20241213070614-a73da9352b56/go.mod h1:Spm4oRihWuuSf6znGoXTFPj3aafW1DRFWfSEDiPGsFE=
 github.com/dvcrn/romajiconv v0.0.0-20241213071056-bbf9fc2bc1bf h1:P/4LueNqPJ9sPye+zHlLuiB7W8+iew4tdxrigWrtGnk=
 github.com/dvcrn/romajiconv v0.0.0-20241213071056-bbf9fc2bc1bf/go.mod h1:Spm4oRihWuuSf6znGoXTFPj3aafW1DRFWfSEDiPGsFE=
+github.com/dvcrn/romajiconv v0.0.0-20241213072709-a51aa4b3f569 h1:dCODEB537llvB2u2EgClGkaoiPnGnd42Jp1LDQqiqak=
+github.com/dvcrn/romajiconv v0.0.0-20241213072709-a51aa4b3f569/go.mod h1:Spm4oRihWuuSf6znGoXTFPj3aafW1DRFWfSEDiPGsFE=
