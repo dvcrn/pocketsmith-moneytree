@@ -3,13 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	sanitizier "github.com/dvcrn/pocketsmith-anapay/sanitizer"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/dvcrn/pocketsmith-anapay/moneytree"
-	"github.com/dvcrn/romajiconv"
-
 	"github.com/dvcrn/pocketsmith-go"
 )
 
@@ -199,7 +198,6 @@ func main() {
 
 		repeatedFoundTransactions := 0
 		for _, tx := range mergedTxs {
-
 			if repeatedFoundTransactions > 15 {
 				fmt.Println("Too many repeated transactions found, likely everything processed already. Skipping...")
 				break
@@ -211,7 +209,7 @@ func main() {
 			}
 
 			name = strings.TrimSpace(name)
-			convertedPayee := romajiconv.ConvertFullWidthToHalf(name)
+			convertedPayee := sanitizier.Sanitize(name)
 
 			fmt.Printf("[%d/%d] Processing moneytree transaction: %d %s\n", repeatedFoundTransactions+1, len(mergedTxs), tx.ID, convertedPayee)
 
