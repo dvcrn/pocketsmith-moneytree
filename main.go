@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -198,6 +199,10 @@ func main() {
 
 		fmt.Println("num merged txs: ", len(mergedTxs))
 
+		sort.Slice(mergedTxs, func(i, j int) bool {
+			return mergedTxs[i].Date.After(mergedTxs[j].Date)
+		})
+
 		repeatedFoundTransactions := 0
 		for i, tx := range mergedTxs {
 			if repeatedFoundTransactions > 15 {
@@ -213,7 +218,7 @@ func main() {
 			name = strings.TrimSpace(name)
 			convertedPayee := sanitizier.Sanitize(name)
 
-			fmt.Printf("[%d/%d] Processing moneytree transaction: %d %s\n", i+1, len(mergedTxs), tx.ID, convertedPayee)
+			fmt.Printf("[%d/%d] Processing moneytree transaction: %d %s %s\n", i+1, len(mergedTxs), tx.ID, convertedPayee, tx.Date.Format("2006-01-02"))
 
 			// Convert to pocketsmith transaction
 			mtidMemo := fmt.Sprintf("mtid=%d", tx.RawTransactionID)
