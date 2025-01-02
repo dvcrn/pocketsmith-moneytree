@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	sanitizier "github.com/dvcrn/pocketsmith-anapay/sanitizer"
 	"os"
 	"strings"
 	"time"
+
+	sanitizier "github.com/dvcrn/pocketsmith-anapay/sanitizer"
 
 	"github.com/dvcrn/pocketsmith-anapay/moneytree"
 	"github.com/dvcrn/pocketsmith-go"
@@ -63,7 +64,7 @@ func findCredentialFromMeta(gm *moneytree.MTGuest, credentialID int) *moneytree.
 	return nil
 }
 
-func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName string, accountName string, accountType moneytree.MTAccountType) (*pocketsmith.Account, error) {
+func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName string, accountName string, accountType moneytree.MTAccountType, currency string) (*pocketsmith.Account, error) {
 	account, err := ps.FindAccountByName(userID, accountName)
 	if err != nil {
 		if err != pocketsmith.ErrNotFound {
@@ -76,7 +77,7 @@ func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName st
 				return nil, err
 			}
 
-			institution, err = ps.CreateInstitution(userID, instituationName, "jpy")
+			institution, err = ps.CreateInstitution(userID, instituationName, strings.ToLower(currency))
 			if err != nil {
 				return nil, err
 			}
@@ -99,14 +100,16 @@ func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName st
 		case moneytree.MTAccountTypeCreditCard:
 			psAccountType = pocketsmith.AccountTypeCredits
 		case moneytree.MTAccountTypeStoredValue:
-			psAccountType = pocketsmith.AccountTypeOtherAsset
+			psAccountType = pocketsmith.AccountTypeBank
+		case moneytree.MTAccountTypeStock:
+			psAccountType = pocketsmith.AccountTypeStocks
 		case moneytree.MTAccountTypePoint:
 			psAccountType = pocketsmith.AccountTypeOtherAsset
 		default:
 			psAccountType = pocketsmith.AccountTypeOtherAsset
 		}
 
-		account, err := ps.CreateAccount(userID, institution.ID, accountName, "jpy", psAccountType)
+		account, err := ps.CreateAccount(userID, institution.ID, accountName, strings.ToLower(currency), psAccountType)
 		if err != nil {
 			return nil, err
 		}
@@ -145,15 +148,14 @@ func main() {
 	}
 
 	for _, account := range accounts {
-		if account.Status == "closed" || account.Currency != "JPY" {
+		if account.Status == "closed" {
 			continue
 		}
 
-		if account.AccountType != moneytree.MTAccountTypeBank && account.AccountType != moneytree.MTAccountTypeCreditCard && account.AccountType != moneytree.MTAccountTypeStoredValue {
+		// not supported by pocketsmith
+		if account.AccountType == moneytree.MTAccountTypeCash || account.AccountType == moneytree.MTAccountTypePoint {
 			continue
 		}
-
-		fmt.Println("Processing moneytree account: ", account.InstitutionAccountName)
 
 		credential := findCredentialFromMeta(guestMeta, account.CredentialID)
 		if credential == nil {
@@ -161,25 +163,25 @@ func main() {
 			continue
 		}
 
-		psAccount, err := findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, account.Nickname, account.AccountType)
+		fmt.Println("Processing moneytree account: ", credential.InstitutionName, account.InstitutionAccountName, account.InstitutionAccountNumber)
+
+		accName := fmt.Sprintf("%s (%s)", account.InstitutionAccountName, account.InstitutionAccountNumber)
+		if account.Currency != "JPY" {
+			if !strings.Contains(accName, account.Currency) || !strings.Contains(accName, account.Currency[0:2]) {
+				accName = fmt.Sprintf("%s (%s) (%s)", account.InstitutionAccountName, account.Currency, account.InstitutionAccountNumber)
+			}
+		}
+
+		psAccount, err := findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, accName, account.AccountType, account.Currency)
 		if err != nil {
 			fmt.Println("Error creating account: ", err)
 			panic(err)
 		}
 
-		// update account balance
-		updateRes, err := ps.UpdateTransactionAccount(psAccount.PrimaryTransactionAccount.ID, psAccount.PrimaryTransactionAccount.Institution.ID, float64(account.CurrentBalance), time.Now().Format("2006-01-02"))
-		if err != nil {
-			fmt.Println("Error updating account balance: ", err)
-			panic(err)
-		}
-
-		fmt.Println("updated account balance: ", updateRes.CurrentBalance)
-
 		page := 1
 		var mergedTxs []*moneytree.MTTransaction
 		for {
-			txs, err := mt.GetTransactions(account.ID, "2000-01-01", page, 500)
+			txs, err := mt.GetTransactions(account.ID, "2010-01-01", page, 500)
 			if err != nil {
 				fmt.Println("Error getting transactions: ", err)
 				panic(err)
@@ -197,7 +199,7 @@ func main() {
 		fmt.Println("num merged txs: ", len(mergedTxs))
 
 		repeatedFoundTransactions := 0
-		for _, tx := range mergedTxs {
+		for i, tx := range mergedTxs {
 			if repeatedFoundTransactions > 15 {
 				fmt.Println("Too many repeated transactions found, likely everything processed already. Skipping...")
 				break
@@ -211,7 +213,7 @@ func main() {
 			name = strings.TrimSpace(name)
 			convertedPayee := sanitizier.Sanitize(name)
 
-			fmt.Printf("[%d/%d] Processing moneytree transaction: %d %s\n", repeatedFoundTransactions+1, len(mergedTxs), tx.ID, convertedPayee)
+			fmt.Printf("[%d/%d] Processing moneytree transaction: %d %s\n", i+1, len(mergedTxs), tx.ID, convertedPayee)
 
 			// Convert to pocketsmith transaction
 			mtidMemo := fmt.Sprintf("mtid=%d", tx.RawTransactionID)
@@ -278,8 +280,23 @@ func main() {
 			_, err = ps.AddTransaction(psAccount.PrimaryTransactionAccount.ID, psTx)
 			if err != nil {
 				fmt.Println("Error adding transaction: ", err)
-				panic(err)
+				continue
 			}
+		}
+
+		psAccount, err = findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, accName, account.AccountType, account.Currency)
+		if err != nil {
+			fmt.Println("Error creating account: ", err)
+			continue
+		}
+		if account.CurrentBalance != psAccount.CurrentBalance {
+			updateRes, err := ps.UpdateTransactionAccount(psAccount.PrimaryTransactionAccount.ID, psAccount.PrimaryTransactionAccount.Institution.ID, float64(account.CurrentBalance), time.Now().Format("2006-01-02"))
+			if err != nil {
+				fmt.Println("Error updating account balance: ", err)
+				continue
+			}
+
+			fmt.Println("balance diverted and is no longer identical on both platforms, manually updated account balance: ", updateRes.CurrentBalance)
 		}
 	}
 }

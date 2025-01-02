@@ -33,6 +33,8 @@ const (
 	MTAccountTypeCreditCard  MTAccountType = "credit_card"
 	MTAccountTypeStoredValue MTAccountType = "stored_value"
 	MTAccountTypePoint       MTAccountType = "point"
+	MTAccountTypeStock       MTAccountType = "stock"
+	MTAccountTypeCash        MTAccountType = "cash_wallet"
 )
 
 type MTAccount struct {
