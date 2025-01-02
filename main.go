@@ -246,6 +246,8 @@ func main() {
 				fmt.Println("Found transaction by cheque number: ", name)
 				repeatedFoundTransactions++
 				continue
+			} else {
+				repeatedFoundTransactions = 0
 			}
 
 			// try to find the transaction first
