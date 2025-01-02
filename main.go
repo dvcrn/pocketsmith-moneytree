@@ -142,6 +142,9 @@ func main() {
 	}
 
 	mt.RefreshAllCredentials()
+	// wait 5 min for the refresh to kick-in and pull the newest transactions
+	fmt.Println("Refreshing Moneytree and waiting 5 min for transactions to update...")
+	time.Sleep(5 * time.Minute)
 
 	accounts, err := mt.GetAccounts()
 	if err != nil {
