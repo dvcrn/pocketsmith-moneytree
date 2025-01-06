@@ -299,14 +299,15 @@ func main() {
 			fmt.Println("Error creating account: ", err)
 			continue
 		}
-		if account.CurrentBalance != psAccount.CurrentBalance {
+
+		if account.CurrentBalance < psAccount.CurrentBalance {
 			updateRes, err := ps.UpdateTransactionAccount(psAccount.PrimaryTransactionAccount.ID, psAccount.PrimaryTransactionAccount.Institution.ID, float64(account.CurrentBalance), time.Now().Format("2006-01-02"))
 			if err != nil {
 				fmt.Println("Error updating account balance: ", err)
 				continue
 			}
 
-			fmt.Println("balance diverted and is no longer identical on both platforms, manually updated account balance: ", updateRes.CurrentBalance)
+			fmt.Println("balance diverted, MT balance is smaller than on PS, manually setting a new start-balance: ", updateRes.CurrentBalance)
 		}
 	}
 }
