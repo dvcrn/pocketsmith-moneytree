@@ -3,16 +3,40 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
 	sanitizier "github.com/dvcrn/pocketsmith-anapay/sanitizer"
+	"github.com/getsentry/sentry-go"
 
 	"github.com/dvcrn/pocketsmith-anapay/moneytree"
 	"github.com/dvcrn/pocketsmith-go"
 )
+
+func init() {
+	sentryDsn := os.Getenv("SENTRY_DSN")
+	if sentryDsn == "" {
+		log.Println("Warning: Sentry DSN not set. Sentry error tracking will be disabled")
+		return
+	}
+
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              sentryDsn,
+		Environment:      "production",
+		Debug:            true,
+		TracesSampleRate: 1.0,
+	})
+
+	if err != nil {
+		log.Fatalf("sentry.Init: %s", err)
+	}
+
+	// Flush buffered events before the program terminates
+	defer sentry.Flush(2 * time.Second)
+}
 
 type Config struct {
 	MoneytreeUsername string
@@ -112,6 +136,7 @@ func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName st
 
 		account, err := ps.CreateAccount(userID, institution.ID, accountName, strings.ToLower(currency), psAccountType)
 		if err != nil {
+			sentry.CaptureException(err)
 			return nil, err
 		}
 
@@ -127,17 +152,20 @@ func main() {
 	ps := pocketsmith.NewClient(config.PocketsmithToken)
 	currentUserRes, err := ps.GetCurrentUser()
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 	}
 
 	mt := moneytree.NewClient(config.MoneytreeApiKey)
 	_, err = mt.GetAccessToken(config.MoneytreeUsername, config.MoneytreePassword)
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 	}
 
 	guestMeta, err := mt.GetGuestMeta()
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 	}
 
@@ -148,6 +176,7 @@ func main() {
 
 	accounts, err := mt.GetAccounts()
 	if err != nil {
+		sentry.CaptureException(err)
 		panic(err)
 	}
 
@@ -179,6 +208,7 @@ func main() {
 		psAccount, err := findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, accName, account.AccountType, account.Currency)
 		if err != nil {
 			fmt.Println("Error creating account: ", err)
+			sentry.CaptureException(err)
 			panic(err)
 		}
 
@@ -188,6 +218,7 @@ func main() {
 			txs, err := mt.GetTransactions(account.ID, "2010-01-01", page, 500)
 			if err != nil {
 				fmt.Println("Error getting transactions: ", err)
+				sentry.CaptureException(err)
 				panic(err)
 			}
 
@@ -225,7 +256,7 @@ func main() {
 
 			// Convert to pocketsmith transaction
 			mtidMemo := fmt.Sprintf("mtid=%d", tx.RawTransactionID)
-			psTx := &pocketsmith.CreateTransaction{
+			psTx := &pocketsmith.Transaction{
 				Payee:       convertedPayee,
 				Amount:      tx.Amount,
 				Date:        tx.Date.Format("2006-01-02"),
@@ -238,6 +269,7 @@ func main() {
 
 			searchResByChequeNumber, err := ps.SearchTransactionsByMemoContains(psAccount.PrimaryTransactionAccount.ID, tx.Date, mtidMemo)
 			if err != nil {
+				sentry.CaptureException(err)
 				fmt.Println("Error searching transactions by cheque number: ", err)
 				continue
 			}
@@ -253,6 +285,7 @@ func main() {
 			// try to find the transaction first
 			searchRes, err := ps.SearchTransactions(psAccount.PrimaryTransactionAccount.ID, tx.Date.Format("2006-01-02"), tx.Date.Format("2006-01-02"), fmt.Sprintf("%d", tx.ID))
 			if err != nil {
+				sentry.CaptureException(err)
 				fmt.Println("Error searching transactions: ", err)
 				continue
 			}
@@ -267,8 +300,9 @@ func main() {
 							psTx.Note = ""
 						}
 
-						err = ps.UpdateTransaction(tx.ID, psTx)
+						_, err = ps.UpdateTransaction(tx.ID, psTx)
 						if err != nil {
+							sentry.CaptureException(err)
 							fmt.Println("Error updating", err)
 							continue
 						}
@@ -289,6 +323,7 @@ func main() {
 
 			_, err = ps.AddTransaction(psAccount.PrimaryTransactionAccount.ID, psTx)
 			if err != nil {
+				sentry.CaptureException(err)
 				fmt.Println("Error adding transaction: ", err)
 				continue
 			}
@@ -296,6 +331,7 @@ func main() {
 
 		psAccount, err = findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, accName, account.AccountType, account.Currency)
 		if err != nil {
+			sentry.CaptureException(err)
 			fmt.Println("Error creating account: ", err)
 			continue
 		}
@@ -303,6 +339,7 @@ func main() {
 		if account.CurrentBalance < psAccount.CurrentBalance {
 			updateRes, err := ps.UpdateTransactionAccount(psAccount.PrimaryTransactionAccount.ID, psAccount.PrimaryTransactionAccount.Institution.ID, float64(account.CurrentBalance), time.Now().Format("2006-01-02"))
 			if err != nil {
+				sentry.CaptureException(err)
 				fmt.Println("Error updating account balance: ", err)
 				continue
 			}
