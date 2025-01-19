@@ -249,8 +249,16 @@ func main() {
 				name = tx.DescriptionGuest
 			}
 
+			if name == "" {
+				name = tx.DescriptionRaw
+			}
+
 			name = strings.TrimSpace(name)
 			convertedPayee := sanitizier.Sanitize(name)
+
+			if convertedPayee == "" {
+				convertedPayee = "Unknown"
+			}
 
 			fmt.Printf("[%d/%d] Processing moneytree transaction: %d %s %s\n", i+1, len(mergedTxs), tx.ID, convertedPayee, tx.Date.Format("2006-01-02"))
 
@@ -336,7 +344,21 @@ func main() {
 			continue
 		}
 
-		if account.CurrentBalance < psAccount.CurrentBalance {
+		fmt.Printf("checking balance. MT balance %f, PS balance %f", account.CurrentBalance, psAccount.CurrentBalance)
+		shouldUpdateBalance := false
+		// if we're dealing with a minus balance (credit card), we need to check if the balance is bigger than on PS
+		// eg, it will increase when the card is paid off. otherwise the opposite
+		if account.CurrentBalance < 0 {
+			if account.CurrentBalance > psAccount.CurrentBalance {
+				shouldUpdateBalance = true
+			}
+		} else {
+			if account.CurrentBalance < psAccount.CurrentBalance {
+				shouldUpdateBalance = true
+			}
+		}
+
+		if shouldUpdateBalance {
 			updateRes, err := ps.UpdateTransactionAccount(psAccount.PrimaryTransactionAccount.ID, psAccount.PrimaryTransactionAccount.Institution.ID, float64(account.CurrentBalance), time.Now().Format("2006-01-02"))
 			if err != nil {
 				sentry.CaptureException(err)
