@@ -1,0 +1,22 @@
+[tools]
+go = "latest"
+
+[tasks.build]
+run = "go build"
+description = "Build the binary in the repo root"
+
+[tasks.run]
+run = "go run ."
+description = "Run the sync locally"
+
+[tasks.test]
+run = "go test ./..."
+description = "Run all Go tests"
+
+[tasks.format]
+run = "gofmt -w ."
+description = "Format Go source files"
+
+[tasks.docker-build]
+run = "docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/dvcrn/pocketsmith-moneytree:latest . --push"
+description = "Build and push a multi-arch Docker image"

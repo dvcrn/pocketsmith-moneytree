@@ -30,7 +30,7 @@ Alternatively, you can provide credentials via command line flags:
 
 ### Run with docker (recommended)
 
-`docker run -e MONEYTREE_API_KEY=xxx MONEYTREE_USERNAME=xxx -e MONEYTREE_PASSWORD=xxx -e POCKETSMITH_TOKEN=xxx dvcrn/pocketsmith-moneytree`
+`docker run -e MONEYTREE_API_KEY=xxx MONEYTREE_USERNAME=xxx -e MONEYTREE_PASSWORD=xxx -e POCKETSMITH_TOKEN=xxx ghcr.io/dvcrn/pocketsmith-moneytree:latest`
 
 ## Building
 
@@ -42,4 +42,3 @@ go build
 
 
 ./pocketsmith-moneytree
-

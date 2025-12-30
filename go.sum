@@ -1,7 +1,5 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/dvcrn/pocketsmith-go v0.0.0-20250102102423-0946146d377e h1:Jf1mUR7hSNj8kdylMB962Lb7erf70gPUcIqKYiDVg4w=
-github.com/dvcrn/pocketsmith-go v0.0.0-20250102102423-0946146d377e/go.mod h1:rRx2gtJK+78Po3CCQzaZzfb7rcNSxhq4r3xz7Cj9U8M=
 github.com/dvcrn/pocketsmith-go v0.0.0-20250108090313-1c1d1a55f5af h1:1hsozVAQ/2JOUp0JjVyvdt7f4j2FAAUQcT+nUzijNV4=
 github.com/dvcrn/pocketsmith-go v0.0.0-20250108090313-1c1d1a55f5af/go.mod h1:rRx2gtJK+78Po3CCQzaZzfb7rcNSxhq4r3xz7Cj9U8M=
 github.com/dvcrn/romajiconv v0.0.0-20241213072709-a51aa4b3f569 h1:dCODEB537llvB2u2EgClGkaoiPnGnd42Jp1LDQqiqak=

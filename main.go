@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dvcrn/pocketsmith-anapay/internal/accountmatch"
 	sanitizier "github.com/dvcrn/pocketsmith-anapay/sanitizer"
 	"github.com/getsentry/sentry-go"
 
@@ -89,34 +90,31 @@ func findCredentialFromMeta(gm *moneytree.MTGuest, credentialID int) *moneytree.
 	return nil
 }
 
-func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName string, accountName string, accountType moneytree.MTAccountType, currency string) (*pocketsmith.Account, error) {
-	account, err := ps.FindAccountByName(userID, accountName)
+func findOrCreateAccount(ps *pocketsmith.Client, userID int, institutionName string, baseName string, accountType moneytree.MTAccountType, currency string) (*pocketsmith.Account, error) {
+	displayName := accountmatch.BuildDisplayAccountName(institutionName, baseName)
+
+	accounts, err := ps.ListAccounts(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	account, err := accountmatch.FindMatchingAccount(accounts, institutionName, baseName, displayName)
 	if err != nil {
 		if err != pocketsmith.ErrNotFound {
 			return nil, err
 		}
 
-		institution, err := ps.FindInstitutionByName(userID, instituationName)
+		institution, err := ps.FindInstitutionByName(userID, institutionName)
 		if err != nil {
 			if err != pocketsmith.ErrNotFound {
 				return nil, err
 			}
 
-			institution, err = ps.CreateInstitution(userID, instituationName, strings.ToLower(currency))
+			institution, err = ps.CreateInstitution(userID, institutionName, strings.ToLower(currency))
 			if err != nil {
 				return nil, err
 			}
 		}
-
-		// check if there is an account in the institution
-		// instAccounts, err := ps.GetInstitutionAccounts(institution.ID)
-		// if err != nil {
-		// 	return nil, err
-		// }
-
-		// if len(instAccounts) > 0 {
-		// 	return &instAccounts[0], nil
-		// }
 
 		var psAccountType pocketsmith.AccountType
 		switch accountType {
@@ -134,13 +132,24 @@ func findOrCreateAccount(ps *pocketsmith.Client, userID int, instituationName st
 			psAccountType = pocketsmith.AccountTypeOtherAsset
 		}
 
-		account, err := ps.CreateAccount(userID, institution.ID, accountName, strings.ToLower(currency), psAccountType)
+		account, err := ps.CreateAccount(userID, institution.ID, displayName, strings.ToLower(currency), psAccountType)
 		if err != nil {
 			sentry.CaptureException(err)
 			return nil, err
 		}
 
 		return account, nil
+	}
+
+	if account.Title != displayName {
+		fmt.Printf("Renaming Pocketsmith account: %q -> %q\n", account.Title, displayName)
+		updated, err := ps.UpdateAccount(account.ID, displayName, account.CurrencyCode, account.Type, account.IsNetWorth)
+		if err != nil {
+			sentry.CaptureException(err)
+			fmt.Println("Error renaming account: ", err)
+		} else {
+			account = updated
+		}
 	}
 
 	return account, nil
@@ -198,14 +207,14 @@ func main() {
 
 		fmt.Println("Processing moneytree account: ", credential.InstitutionName, account.InstitutionAccountName, account.InstitutionAccountNumber)
 
-		accName := fmt.Sprintf("%s (%s)", account.InstitutionAccountName, account.InstitutionAccountNumber)
+		baseName := fmt.Sprintf("%s (%s)", account.InstitutionAccountName, account.InstitutionAccountNumber)
 		if account.Currency != "JPY" {
-			if !strings.Contains(accName, account.Currency) || !strings.Contains(accName, account.Currency[0:2]) {
-				accName = fmt.Sprintf("%s (%s) (%s)", account.InstitutionAccountName, account.Currency, account.InstitutionAccountNumber)
+			if !strings.Contains(baseName, account.Currency) || !strings.Contains(baseName, account.Currency[0:2]) {
+				baseName = fmt.Sprintf("%s (%s) (%s)", account.InstitutionAccountName, account.Currency, account.InstitutionAccountNumber)
 			}
 		}
 
-		psAccount, err := findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, accName, account.AccountType, account.Currency)
+		psAccount, err := findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, baseName, account.AccountType, account.Currency)
 		if err != nil {
 			fmt.Println("Error creating account: ", err)
 			sentry.CaptureException(err)
@@ -337,7 +346,7 @@ func main() {
 			}
 		}
 
-		psAccount, err = findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, accName, account.AccountType, account.Currency)
+		psAccount, err = findOrCreateAccount(ps, currentUserRes.ID, credential.InstitutionName, baseName, account.AccountType, account.Currency)
 		if err != nil {
 			sentry.CaptureException(err)
 			fmt.Println("Error creating account: ", err)
